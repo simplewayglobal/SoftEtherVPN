@@ -69,6 +69,8 @@ struct SECURE
 
 #ifdef	OS_WIN32
 	struct SEC_DATA_WIN32 *Data;			// Data
+#else
+	struct SEC_DATA_UNIX *Data;				// Data
 #endif	// OS_WIN32
 };
 
@@ -162,6 +164,13 @@ void FreeSecInfoMemory(SEC_INFO *s);
 bool Win32IsDeviceSupported(SECURE_DEVICE *dev);
 bool Win32LoadSecModule(SECURE *sec);
 void Win32FreeSecModule(SECURE *sec);
+
+#else
+
+// Unix functions
+bool UnixIsDeviceSupported(SECURE_DEVICE *dev);
+bool UnixLoadSecModule(SECURE *sec);
+void UnixFreeSecModule(SECURE *sec);
 
 #endif	// OS_WIN32
 

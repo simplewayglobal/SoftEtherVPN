@@ -21,6 +21,10 @@
 
 #include <cryptoki.h>
 
+#ifndef OS_WIN32
+#include <dlfcn.h>
+#endif	// !OS_WIN32
+
 #define	MAX_OBJ				1024		// Maximum number of objects in the hardware (assumed)
 
 #define	A_SIZE(a, i)		(a[(i)].ulValueLen)
@@ -56,6 +60,9 @@ const SECURE_DEVICE SupportedList[] =
 	{21,	SECURE_USB_TOKEN,	"ePass 1000ND/2000/3000",			"Feitian Technologies",	"ngp11v211.dll"},
 	{22,	SECURE_USB_TOKEN,	"CryptoID",				"Longmai Technology",	"cryptoide_pkcs11.dll"},
 	{23,	SECURE_USB_TOKEN,	"RuToken",				"Aktiv Co.",			"rtPKCS11.dll"},
+#ifndef OS_WIN32
+	{24,	SECURE_USB_TOKEN,	"Generic PKCS#11",		"p11-kit",				"p11-kit-proxy.so"},
+#endif
 };
 
 #ifdef	OS_WIN32
@@ -246,6 +253,187 @@ void Win32FreeSecModule(SECURE *sec)
 	FreeLibrary(sec->Data->hInst);
 	Free(sec->Data);
 
+	sec->Data = NULL;
+}
+
+#else
+
+// Unix internal data
+typedef struct SEC_DATA_UNIX
+{
+	void *Handle;  // dlopen handle
+} SEC_DATA_UNIX;
+
+// Load shared library for Unix
+void *UnixSecureLoadLibrary(char *modulename)
+{
+	void *handle;
+	char path[MAX_PATH];
+
+	// Validate arguments
+	if (modulename == NULL)
+	{
+		return NULL;
+	}
+
+	// Try p11-kit-proxy.so first (generic PKCS#11 module discovery)
+	// This provides access to all modules registered in /etc/pkcs11/modules/
+	if (StrCmpi(modulename, "p11-kit-proxy.so") == 0)
+	{
+		// Standard p11-kit paths
+		const char *p11kit_paths[] = {
+			"p11-kit-proxy.so",           // Let system find it
+			"/usr/lib/p11-kit-proxy.so",
+			"/usr/lib64/p11-kit-proxy.so",
+			"/usr/local/lib/p11-kit-proxy.so",
+			"/usr/lib/x86_64-linux-gnu/p11-kit-proxy.so",
+			"/usr/lib/aarch64-linux-gnu/p11-kit-proxy.so",
+			"/usr/lib/arm-linux-gnueabihf/p11-kit-proxy.so",
+			NULL
+		};
+
+		int i;
+		for (i = 0; p11kit_paths[i] != NULL; i++)
+		{
+			handle = dlopen(p11kit_paths[i], RTLD_NOW | RTLD_LOCAL);
+			if (handle != NULL)
+			{
+				Debug("PKCS#11: Loaded p11-kit-proxy from %s\n", p11kit_paths[i]);
+				return handle;
+			}
+		}
+		Debug("PKCS#11: p11-kit-proxy.so not found, falling back to direct module loading\n");
+	}
+
+	// Standard PKCS#11 library search paths
+	const char *search_paths[] = {
+		"%s",                    // Try as provided (absolute path or LD_LIBRARY_PATH)
+		"/usr/lib/%s",
+		"/usr/lib64/%s",
+		"/usr/lib/pkcs11/%s",
+		"/usr/lib64/pkcs11/%s",
+		"/usr/local/lib/%s",
+		"/usr/local/lib/pkcs11/%s",
+		"/usr/lib/x86_64-linux-gnu/%s",
+		"/usr/lib/x86_64-linux-gnu/pkcs11/%s",
+		"/usr/lib/aarch64-linux-gnu/%s",
+		"/usr/lib/aarch64-linux-gnu/pkcs11/%s",
+		"/usr/lib/arm-linux-gnueabihf/%s",
+		"/usr/lib/arm-linux-gnueabihf/pkcs11/%s",
+		NULL
+	};
+
+	int i;
+	for (i = 0; search_paths[i] != NULL; i++)
+	{
+		snprintf(path, sizeof(path), search_paths[i], modulename);
+		handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+		if (handle != NULL)
+		{
+			Debug("PKCS#11: Loaded module from %s\n", path);
+			return handle;
+		}
+	}
+
+	// Log error
+	Debug("PKCS#11: dlopen failed for %s: %s\n", modulename, dlerror());
+	return NULL;
+}
+
+// Examine whether the specified device is installed
+bool UnixIsDeviceSupported(SECURE_DEVICE *dev)
+{
+	void *handle;
+	// Validate arguments
+	if (dev == NULL)
+	{
+		return false;
+	}
+
+	// Try to load the module
+	handle = UnixSecureLoadLibrary(dev->ModuleName);
+	if (handle == NULL)
+	{
+		return false;
+	}
+
+	dlclose(handle);
+	return true;
+}
+
+// Load the PKCS#11 module for Unix
+bool UnixLoadSecModule(SECURE *sec)
+{
+	void *handle;
+	CK_RV (*get_function_list)(CK_FUNCTION_LIST_PTR_PTR);
+	CK_FUNCTION_LIST_PTR api;
+	SEC_DATA_UNIX *u;
+
+	// Validate arguments
+	if (sec == NULL || sec->Dev == NULL)
+	{
+		return false;
+	}
+
+	// Load shared library
+	handle = UnixSecureLoadLibrary(sec->Dev->ModuleName);
+	if (handle == NULL)
+	{
+		return false;
+	}
+
+	// Get C_GetFunctionList
+	get_function_list = (CK_RV (*)(CK_FUNCTION_LIST_PTR_PTR))dlsym(handle, "C_GetFunctionList");
+
+	if (get_function_list == NULL)
+	{
+		Debug("PKCS#11: dlsym(C_GetFunctionList) failed: %s\n", dlerror());
+		dlclose(handle);
+		return false;
+	}
+
+	// Get function list
+	if (get_function_list(&api) != CKR_OK || api == NULL)
+	{
+		Debug("PKCS#11: C_GetFunctionList failed\n");
+		dlclose(handle);
+		return false;
+	}
+
+	// Allocate and store data
+	u = ZeroMalloc(sizeof(SEC_DATA_UNIX));
+	u->Handle = handle;
+	sec->Data = u;
+	sec->Api = api;
+
+	Debug("PKCS#11: Successfully loaded module %s\n", sec->Dev->ModuleName);
+
+	return true;
+}
+
+// Unload the device module for Unix
+void UnixFreeSecModule(SECURE *sec)
+{
+	SEC_DATA_UNIX *u;
+
+	// Validate arguments
+	if (sec == NULL)
+	{
+		return;
+	}
+	if (sec->Data == NULL)
+	{
+		return;
+	}
+
+	u = sec->Data;
+
+	if (u->Handle != NULL)
+	{
+		dlclose(u->Handle);
+	}
+
+	Free(u);
 	sec->Data = NULL;
 }
 
@@ -1769,7 +1957,14 @@ bool LoadSecModule(SECURE *sec)
 
 #ifdef	OS_WIN32
 	ret = Win32LoadSecModule(sec);
+#else
+	ret = UnixLoadSecModule(sec);
 #endif	// OS_WIN32
+
+	if (!ret)
+	{
+		return false;
+	}
 
 	// Initialization
 	if (sec->Api->C_Initialize(NULL) != CKR_OK)
@@ -1802,6 +1997,8 @@ void FreeSecModule(SECURE *sec)
 
 #ifdef	OS_WIN32
 	Win32FreeSecModule(sec);
+#else
+	UnixFreeSecModule(sec);
 #endif	// OS_WIN32
 
 }
@@ -1869,6 +2066,8 @@ bool IsDeviceSupported(SECURE_DEVICE *dev)
 	bool b = false;
 #ifdef	OS_WIN32
 	b = Win32IsDeviceSupported(dev);
+#else
+	b = UnixIsDeviceSupported(dev);
 #endif	// OS_WIN32
 	return b;
 }
