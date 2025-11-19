@@ -19,12 +19,14 @@
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
 
-#include <cryptoki.h>
-
 #ifndef OS_WIN32
+// Include p11-kit headers first (they provide pkcs11.h)
 #include <dlfcn.h>
 #include <p11-kit/uri.h>
 #include <p11-kit/p11-kit.h>
+#else
+// Windows uses the standalone cryptoki.h
+#include <cryptoki.h>
 #endif	// !OS_WIN32
 
 #define	MAX_OBJ				1024		// Maximum number of objects in the hardware (assumed)
