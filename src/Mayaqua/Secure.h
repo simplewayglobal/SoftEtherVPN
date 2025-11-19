@@ -59,7 +59,7 @@ struct SECURE
 	LOCK *lock;								// Lock
 	SECURE_DEVICE *Dev;						// Device Information
 	UINT Error;								// The error that last occurred
-	struct CK_FUNCTION_LIST *Api;			// API
+	CK_FUNCTION_LIST_PTR Api;				// API (PKCS#11 function list)
 	bool Initialized;						// Initialization flag
 	UINT NumSlot;							// The number of slots
 	UINT *SlotIdList;						// Slot ID list
