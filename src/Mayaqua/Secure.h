@@ -10,6 +10,13 @@
 
 #include "MayaType.h"
 
+// Include PKCS#11 headers to get complete CK_FUNCTION_LIST definition
+#ifndef OS_WIN32
+#include <p11-kit/pkcs11.h>
+#else
+#include <cryptoki.h>
+#endif	// !OS_WIN32
+
 // Constant
 #define	MAX_SEC_DATA_SIZE		4096
 
