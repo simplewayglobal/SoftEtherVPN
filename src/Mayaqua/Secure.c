@@ -421,23 +421,13 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 	pin = p11_kit_uri_get_pin_value(uri);
 	module_path = p11_kit_uri_get_module_path(uri);
 
-	// For token-based URIs without explicit module-path, use p11-kit to discover
+	// module-path is required in the URI
 	if (module_path == NULL)
 	{
-		CK_TOKEN_INFO *token = p11_kit_uri_get_token_info(uri);
-		if (token != NULL)
-		{
-			// Token info present - use p11-kit modules to discover
-			// For now, use libckteec.so.0 as default for OP-TEE
-			module_path = "/usr/lib/libckteec.so.0";
-			Debug("PKCS#11 URI: No module-path specified, using default: %s\n", module_path);
-		}
-		else
-		{
-			Debug("PKCS#11 URI: Must contain either module-path or token information\n");
-			p11_kit_uri_free(uri);
-			return false;
-		}
+		Debug("PKCS#11 URI: module-path is required in URI\n");
+		Debug("PKCS#11 URI: Example: pkcs11:module-path=/usr/lib/libckteec.so.0;token=user;object=identity\n");
+		p11_kit_uri_free(uri);
+		return false;
 	}
 
 	Debug("PKCS#11 URI: slot-id=%lu, module=%s, pin=%s\n",
