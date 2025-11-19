@@ -384,7 +384,9 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 	P11KitUri *uri = NULL;
 	CK_FUNCTION_LIST_PTR module = NULL;
 	const char *module_path;
+	const char *pin;
 	CK_SLOT_ID slot_id;
+	CK_ATTRIBUTE_PTR key_id;
 	SEC_DATA_UNIX *u;
 	int err;
 	CK_RV rv;
@@ -415,6 +417,8 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 
 	// Extract information from URI
 	slot_id = p11_kit_uri_get_slot_id(uri);
+	key_id = p11_kit_uri_get_attribute(uri, CKA_ID);
+	pin = p11_kit_uri_get_pin_value(uri);
 	module_path = p11_kit_uri_get_module_path(uri);
 
 	// For token-based URIs without explicit module-path, use p11-kit to discover
@@ -435,6 +439,11 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 			return false;
 		}
 	}
+
+	Debug("PKCS#11 URI: slot-id=%lu, module=%s, pin=%s\n",
+		(unsigned long)slot_id,
+		module_path ? module_path : "(null)",
+		pin ? "***" : "(null)");
 
 	// Load the module using p11-kit API
 	Debug("PKCS#11: Loading module: %s\n", module_path);
