@@ -22,6 +22,7 @@
 #ifndef OS_WIN32
 // Include p11-kit headers first (they provide pkcs11.h)
 #include <dlfcn.h>
+#include <p11-kit/pkcs11.h>
 #include <p11-kit/uri.h>
 #include <p11-kit/p11-kit.h>
 #else
