@@ -23,6 +23,8 @@
 
 #ifndef OS_WIN32
 #include <dlfcn.h>
+#include <p11-kit/uri.h>
+#include <p11-kit/p11-kit.h>
 #endif	// !OS_WIN32
 
 #define	MAX_OBJ				1024		// Maximum number of objects in the hardware (assumed)
@@ -262,6 +264,10 @@ void Win32FreeSecModule(SECURE *sec)
 typedef struct SEC_DATA_UNIX
 {
 	void *Handle;  // dlopen handle
+	// p11-kit direct loading support (for PKCS#11 URIs)
+	P11KitUri *P11KitUri;
+	CK_FUNCTION_LIST_PTR P11KitModule;
+	bool UseP11KitApi;
 } SEC_DATA_UNIX;
 
 // Load shared library for Unix
@@ -361,6 +367,112 @@ bool UnixIsDeviceSupported(SECURE_DEVICE *dev)
 	return true;
 }
 
+// Check if a string is a PKCS#11 URI
+bool IsPkcs11Uri(const char *str)
+{
+	if (str == NULL)
+	{
+		return false;
+	}
+	return StartWith(str, "pkcs11:");
+}
+
+// Load PKCS#11 module using p11-kit API with URI
+// This allows direct module loading with environment variable support (like CKTEEC_LOGIN_TYPE)
+bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
+{
+	P11KitUri *uri = NULL;
+	CK_FUNCTION_LIST_PTR module = NULL;
+	const char *module_path;
+	CK_SLOT_ID slot_id;
+	SEC_DATA_UNIX *u;
+	int err;
+	CK_RV rv;
+
+	// Validate arguments
+	if (sec == NULL || uri_str == NULL)
+	{
+		return false;
+	}
+
+	Debug("PKCS#11 URI: Parsing URI: %s\n", uri_str);
+
+	// Parse the PKCS#11 URI
+	uri = p11_kit_uri_new();
+	if (uri == NULL)
+	{
+		Debug("PKCS#11 URI: Failed to create URI parser\n");
+		return false;
+	}
+
+	err = p11_kit_uri_parse(uri_str, P11_KIT_URI_FOR_ANY, uri);
+	if (err != P11_KIT_URI_OK)
+	{
+		Debug("PKCS#11 URI: Parse failed: %s\n", p11_kit_uri_message(err));
+		p11_kit_uri_free(uri);
+		return false;
+	}
+
+	// Extract information from URI
+	slot_id = p11_kit_uri_get_slot_id(uri);
+	module_path = p11_kit_uri_get_module_path(uri);
+
+	// For token-based URIs without explicit module-path, use p11-kit to discover
+	if (module_path == NULL)
+	{
+		CK_TOKEN_INFO *token = p11_kit_uri_get_token_info(uri);
+		if (token != NULL)
+		{
+			// Token info present - use p11-kit modules to discover
+			// For now, use libckteec.so.0 as default for OP-TEE
+			module_path = "/usr/lib/libckteec.so.0";
+			Debug("PKCS#11 URI: No module-path specified, using default: %s\n", module_path);
+		}
+		else
+		{
+			Debug("PKCS#11 URI: Must contain either module-path or token information\n");
+			p11_kit_uri_free(uri);
+			return false;
+		}
+	}
+
+	// Load the module using p11-kit API
+	Debug("PKCS#11: Loading module: %s\n", module_path);
+	module = p11_kit_module_load(module_path, 0);
+	if (module == NULL)
+	{
+		Debug("PKCS#11: Failed to load module [%s]: %s\n",
+			module_path, p11_kit_message());
+		p11_kit_uri_free(uri);
+		return false;
+	}
+
+	// Initialize the module
+	rv = module->C_Initialize(NULL_PTR);
+	if (rv != CKR_OK)
+	{
+		Debug("PKCS#11: C_Initialize failed: 0x%lx\n", (unsigned long)rv);
+		p11_kit_module_release(module);
+		p11_kit_uri_free(uri);
+		return false;
+	}
+
+	// Store the data
+	u = ZeroMalloc(sizeof(SEC_DATA_UNIX));
+	u->Handle = NULL;  // We're not using dlopen
+	u->P11KitUri = uri;
+	u->P11KitModule = module;
+	u->UseP11KitApi = true;
+
+	sec->Data = u;
+	sec->Api = module;
+	sec->Initialized = true;
+
+	Debug("PKCS#11: Successfully loaded module via p11-kit API\n");
+
+	return true;
+}
+
 // Load the PKCS#11 module for Unix
 bool UnixLoadSecModule(SECURE *sec)
 {
@@ -375,6 +487,15 @@ bool UnixLoadSecModule(SECURE *sec)
 		return false;
 	}
 
+	// Check if ModuleName is a PKCS#11 URI
+	// If so, use p11-kit API for direct module loading
+	if (IsPkcs11Uri(sec->Dev->ModuleName))
+	{
+		Debug("PKCS#11: Detected URI, using p11-kit direct loading\n");
+		return UnixLoadSecModuleWithUri(sec, sec->Dev->ModuleName);
+	}
+
+	// Otherwise, use traditional dlopen loading
 	// Load shared library
 	handle = UnixSecureLoadLibrary(sec->Dev->ModuleName);
 	if (handle == NULL)
@@ -428,7 +549,23 @@ void UnixFreeSecModule(SECURE *sec)
 
 	u = sec->Data;
 
-	if (u->Handle != NULL)
+	// If using p11-kit API, release those resources
+	if (u->UseP11KitApi)
+	{
+		if (u->P11KitUri != NULL)
+		{
+			p11_kit_uri_free(u->P11KitUri);
+			u->P11KitUri = NULL;
+		}
+
+		if (u->P11KitModule != NULL)
+		{
+			p11_kit_module_release(u->P11KitModule);
+			u->P11KitModule = NULL;
+		}
+	}
+	// Otherwise free the dlopen handle
+	else if (u->Handle != NULL)
 	{
 		dlclose(u->Handle);
 	}
