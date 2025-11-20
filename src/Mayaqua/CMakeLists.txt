@@ -101,6 +101,8 @@ endif()
 
 if(UNIX)
   find_package(Threads REQUIRED)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(P11KIT REQUIRED p11-kit-1)
 
   # In some cases libiconv is not included in libc
   find_library(LIB_ICONV iconv)
@@ -111,10 +113,14 @@ if(UNIX)
   target_link_libraries(mayaqua
     PRIVATE
       Threads::Threads
+      ${P11KIT_LIBRARIES}
       $<$<BOOL:${LIB_ICONV}>:${LIB_ICONV}>
       $<$<BOOL:${LIB_M}>:${LIB_M}>
       $<$<BOOL:${LIB_RT}>:${LIB_RT}>
   )
+
+  target_include_directories(mayaqua PRIVATE ${P11KIT_INCLUDE_DIRS})
+  target_link_directories(mayaqua PRIVATE ${P11KIT_LIBRARY_DIRS})
 
   if (NOT HAVE_SYS_AUXV OR SKIP_CPU_FEATURES)
     add_definitions(-DSKIP_CPU_FEATURES)
