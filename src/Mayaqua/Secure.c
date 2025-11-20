@@ -272,6 +272,8 @@ typedef struct SEC_DATA_UNIX
 	P11KitUri *P11KitUri;
 	CK_FUNCTION_LIST_PTR P11KitModule;
 	bool UseP11KitApi;
+	CK_SLOT_ID SlotIdFromUri;  // Slot ID from PKCS#11 URI
+	bool HasSlotId;  // Whether slot ID was specified in URI
 } SEC_DATA_UNIX;
 
 // Load shared library for Unix
@@ -496,6 +498,19 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 	u->P11KitUri = uri;
 	u->P11KitModule = module;
 	u->UseP11KitApi = true;
+
+	// Store the slot ID from the URI if specified
+	if (slot_id != (CK_SLOT_ID)-1)
+	{
+		u->SlotIdFromUri = slot_id;
+		u->HasSlotId = true;
+		fprintf(stderr, "PKCS#11: Stored slot ID %lu from URI\n", (unsigned long)slot_id);
+	}
+	else
+	{
+		u->HasSlotId = false;
+		fprintf(stderr, "PKCS#11: No slot ID specified in URI\n");
+	}
 
 	sec->Data = u;
 	sec->Api = module;
