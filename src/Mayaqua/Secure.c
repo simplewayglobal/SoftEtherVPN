@@ -427,38 +427,50 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 	pin = p11_kit_uri_get_pin_value(uri);
 	module_path = p11_kit_uri_get_module_path(uri);
 
-	// module-path is required in the URI
+	// If no module-path in URI, we'll use p11-kit-proxy
+	// The proxy will find the correct module via /etc/pkcs11/modules/*.module
 	if (module_path == NULL)
 	{
-		fprintf(stderr, "PKCS#11 URI: ERROR - module-path is required in URI\n");
-		fprintf(stderr, "PKCS#11 URI: Example: pkcs11:module-path=/usr/lib/libckteec.so.0;token=user;object=identity\n");
-		Debug("PKCS#11 URI: module-path is required in URI\n");
-		Debug("PKCS#11 URI: Example: pkcs11:module-path=/usr/lib/libckteec.so.0;token=user;object=identity\n");
-		p11_kit_uri_free(uri);
-		return false;
+		fprintf(stderr, "PKCS#11 URI: No module-path specified, will use p11-kit-proxy\n");
+		Debug("PKCS#11 URI: No module-path specified, will use p11-kit-proxy\n");
 	}
 
 	fprintf(stderr, "PKCS#11 URI: slot-id=%lu, module=%s, pin=%s\n",
 		(unsigned long)slot_id,
-		module_path ? module_path : "(null)",
+		module_path ? module_path : "(p11-kit-proxy)",
 		pin ? "***" : "(null)");
 	Debug("PKCS#11 URI: slot-id=%lu, module=%s, pin=%s\n",
 		(unsigned long)slot_id,
-		module_path ? module_path : "(null)",
+		module_path ? module_path : "(p11-kit-proxy)",
 		pin ? "***" : "(null)");
 
 	// Load the module using p11-kit API
-	fprintf(stderr, "PKCS#11: Loading module: %s\n", module_path);
-	Debug("PKCS#11: Loading module: %s\n", module_path);
-	module = p11_kit_module_load(module_path, 0);
+	// IMPORTANT: Load via p11-kit-proxy.so to ensure environment variables are inherited
+	// The proxy will forward calls to the actual module (libckteec.so.0)
+	fprintf(stderr, "PKCS#11: Loading module via p11-kit-proxy: %s\n", module_path);
+	Debug("PKCS#11: Loading module via p11-kit-proxy: %s\n", module_path);
+
+	// Instead of loading the module directly, use p11-kit's module enumeration
+	// which respects the configuration in /etc/pkcs11/modules/*.module
+	// This ensures environment variables are properly inherited
+	module = p11_kit_module_load("p11-kit-proxy.so", 0);
 	if (module == NULL)
 	{
-		fprintf(stderr, "PKCS#11: ERROR - Failed to load module [%s]: %s\n",
-			module_path, p11_kit_message());
-		Debug("PKCS#11: Failed to load module [%s]: %s\n",
-			module_path, p11_kit_message());
-		p11_kit_uri_free(uri);
-		return false;
+		fprintf(stderr, "PKCS#11: ERROR - Failed to load p11-kit-proxy.so: %s\n",
+			p11_kit_message());
+		fprintf(stderr, "PKCS#11: Falling back to direct module load\n");
+
+		// Fallback: try direct load
+		module = p11_kit_module_load(module_path, 0);
+		if (module == NULL)
+		{
+			fprintf(stderr, "PKCS#11: ERROR - Failed to load module [%s]: %s\n",
+				module_path, p11_kit_message());
+			Debug("PKCS#11: Failed to load module [%s]: %s\n",
+				module_path, p11_kit_message());
+			p11_kit_uri_free(uri);
+			return false;
+		}
 	}
 
 	// Initialize the module
