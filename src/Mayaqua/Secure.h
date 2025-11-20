@@ -61,10 +61,10 @@ struct SECURE
 	UINT Error;								// The error that last occurred
 	CK_FUNCTION_LIST_PTR Api;				// API (PKCS#11 function list)
 	bool Initialized;						// Initialization flag
-	UINT NumSlot;							// The number of slots
-	UINT *SlotIdList;						// Slot ID list
+	CK_ULONG NumSlot;						// The number of slots
+	CK_SLOT_ID *SlotIdList;					// Slot ID list
 	bool SessionCreated;					// Session creation flags
-	UINT SessionId;							// Session ID
+	CK_SESSION_HANDLE SessionId;			// Session ID
 	UINT SessionSlotNumber;					// Slot ID of the session
 	bool LoginFlag;							// Logged-in flag
 	SEC_INFO *Info;							// Token information
