@@ -1626,6 +1626,9 @@ void CnSecureSign(SOCK *s, PACK *p)
 	Zero(&sign, sizeof(sign));
 	InRpcSecureSign(&sign, p);
 
+	fprintf(stderr, "CnSecureSign: Called! UseSecureDeviceId=%u\n", sign.UseSecureDeviceId);
+	fprintf(stderr, "CnSecureSign: client=%p\n", client);
+
 #ifdef	OS_WIN32
 	// Win32: Show dialog
 	ret = Win32CiSecureSign(&sign);
@@ -1634,6 +1637,8 @@ void CnSecureSign(SOCK *s, PACK *p)
 	// Get PIN from SOFTETHER_PKCS11_URI environment variable
 	char *pin_str = "1234";  // Default PIN, will be extracted from URI if available
 	char *pkcs11_uri = getenv("SOFTETHER_PKCS11_URI");
+
+	fprintf(stderr, "CnSecureSign: SOFTETHER_PKCS11_URI=%s\n", pkcs11_uri ? pkcs11_uri : "(null)");
 
 	if (pkcs11_uri != NULL)
 	{
@@ -1663,18 +1668,34 @@ void CnSecureSign(SOCK *s, PACK *p)
 		}
 	}
 
-	CLog(client, "LC_SECURE_SIGN_START", sign.UseSecureDeviceId);
+	fprintf(stderr, "CnSecureSign: Calling SecureSign with device_id=%u, pin=%s\n",
+		sign.UseSecureDeviceId, pin_str);
+
+	if (client != NULL)
+	{
+		CLog(client, "LC_SECURE_SIGN_START", sign.UseSecureDeviceId);
+	}
 
 	UINT err = SecureSign(&sign, sign.UseSecureDeviceId, pin_str);
 
+	fprintf(stderr, "CnSecureSign: SecureSign returned err=%u\n", err);
+
 	if (err == ERR_NO_ERROR)
 	{
-		CLog(client, "LC_SECURE_SIGN_OK");
+		fprintf(stderr, "CnSecureSign: SUCCESS!\n");
+		if (client != NULL)
+		{
+			CLog(client, "LC_SECURE_SIGN_OK");
+		}
 		ret = true;
 	}
 	else
 	{
-		CLog(client, "LC_SECURE_SIGN_ERROR", err, GetUniErrorStr(err));
+		fprintf(stderr, "CnSecureSign: FAILED with error %u\n", err);
+		if (client != NULL)
+		{
+			CLog(client, "LC_SECURE_SIGN_ERROR", err, GetUniErrorStr(err));
+		}
 		ret = false;
 	}
 #endif	// OS_WIN32
