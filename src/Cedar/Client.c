@@ -1630,8 +1630,21 @@ void CnSecureSign(SOCK *s, PACK *p)
 	// Win32: Show dialog
 	ret = Win32CiSecureSign(&sign);
 #else	// OS_WIN32
-	// UNIX: not implemented
-	ret = false;
+	// UNIX: Call SecureSign directly with PKCS#11
+	CLog(client, "LC_SECURE_SIGN_START", sign.SecureDeviceId);
+
+	UINT err = SecureSign(&sign, sign.SecureDeviceId, sign.SecurePin);
+
+	if (err == ERR_NO_ERROR)
+	{
+		CLog(client, "LC_SECURE_SIGN_OK");
+		ret = true;
+	}
+	else
+	{
+		CLog(client, "LC_SECURE_SIGN_ERROR", err, GetUniErrorStr(err));
+		ret = false;
+	}
 #endif	// OS_WIN32
 
 	p = NewPack();

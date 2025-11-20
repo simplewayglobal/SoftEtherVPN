@@ -2102,6 +2102,9 @@ LC_CONNECT_1			VPN Connection Setting "%s": Connection operation starting (this 
 LC_SSL_CONNECTED		VPN Connection Setting "%s": SSL communication has been started. The protocol version is %S. The encryption algorithm name is "%S".
 LC_CONNECT_2			VPN Connection Setting "%s": Now connected. Session name: "%S"
 LC_CONNECT_ERROR		VPN Connection Setting "%s": The connection has been either disconnected or it failed. Cause: %s (code %u)
+LC_SECURE_SIGN_START	Starting certificate-based authentication using secure device ID %u (PKCS#11).
+LC_SECURE_SIGN_OK		Certificate-based authentication completed successfully.
+LC_SECURE_SIGN_ERROR	Certificate-based authentication failed: %s (code %u)
 LC_DISCONNECT			Disconnecting the VPN Connection Setting "%s".
 LC_CREATE_VLAN			A Virtual Network Adapter "%S" has been created.
 LC_UPDATE_VLAN			The Virtual Network Adapter "%S" driver has been reinstalled.
