@@ -2172,14 +2172,17 @@ bool LoadSecModule(SECURE *sec)
 	}
 
 	// Initialization
-	if (sec->Api->C_Initialize(NULL) != CKR_OK)
+	// Check if already initialized (UnixLoadSecModuleWithUri may have already called C_Initialize)
+	if (!sec->Initialized)
 	{
-		// Initialization Failed
-		FreeSecModule(sec);
-		return false;
+		if (sec->Api->C_Initialize(NULL) != CKR_OK)
+		{
+			// Initialization Failed
+			FreeSecModule(sec);
+			return false;
+		}
+		sec->Initialized = true;
 	}
-
-	sec->Initialized = true;
 
 	return ret;
 }
