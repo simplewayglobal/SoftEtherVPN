@@ -542,17 +542,24 @@ bool CncSecureSignDlg(SECURE_SIGN *sign)
 	SOCK *s;
 	PACK *p;
 	bool ret = false;
+
+	fprintf(stderr, "CncSecureSignDlg: Called\n");
+
 	// Validate arguments
 	if (sign == NULL)
 	{
+		fprintf(stderr, "CncSecureSignDlg: sign is NULL\n");
 		return false;
 	}
 
+	fprintf(stderr, "CncSecureSignDlg: Calling CncConnect\n");
 	s = CncConnect();
 	if (s == NULL)
 	{
+		fprintf(stderr, "CncSecureSignDlg: CncConnect returned NULL - cannot connect to notification service\n");
 		return false;
 	}
+	fprintf(stderr, "CncSecureSignDlg: CncConnect succeeded\n");
 
 	p = NewPack();
 	PackAddStr(p, "function", "secure_sign");
