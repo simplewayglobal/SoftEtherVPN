@@ -5478,6 +5478,9 @@ bool ClientUploadAuth(CONNECTION *c)
 	a = c->Session->ClientAuth;
 	o = c->Session->ClientOption;
 
+	fprintf(stderr, "ClientUploadAuth: AuthType=%u\n", a->AuthType);
+	fprintf(stderr, "ClientUploadAuth: UseTicket=%d\n", c->UseTicket);
+
 	if (c->UseTicket == false)
 	{
 		switch (a->AuthType)
@@ -5527,14 +5530,17 @@ bool ClientUploadAuth(CONNECTION *c)
 
 		case CLIENT_AUTHTYPE_SECURE:
 			// Authentication by secure device
+			fprintf(stderr, "ClientUploadAuth: CLIENT_AUTHTYPE_SECURE - Calling ClientSecureSign\n");
 			if (ClientSecureSign(c, sign, c->Random, &x))
 			{
+				fprintf(stderr, "ClientUploadAuth: ClientSecureSign SUCCESS\n");
 				p = PackLoginWithCert(o->HubName, a->Username, x, sign, x->bits / 8);
 				c->ClientX = CloneX(x);
 				FreeX(x);
 			}
 			else
 			{
+				fprintf(stderr, "ClientUploadAuth: ClientSecureSign FAILED\n");
 				c->Err = ERR_SECURE_DEVICE_OPEN_FAILED;
 				c->Session->ForceStopFlag = true;
 			}
