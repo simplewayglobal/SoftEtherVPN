@@ -482,11 +482,21 @@ bool UnixLoadSecModule(SECURE *sec)
 	CK_RV (*get_function_list)(CK_FUNCTION_LIST_PTR_PTR);
 	CK_FUNCTION_LIST_PTR api;
 	SEC_DATA_UNIX *u;
+	char *pkcs11_uri_env;
 
 	// Validate arguments
 	if (sec == NULL || sec->Dev == NULL)
 	{
 		return false;
+	}
+
+	// Check for PKCS#11 URI in environment variable (for device ID 24)
+	// This allows runtime specification of the module to load
+	pkcs11_uri_env = getenv("SOFTETHER_PKCS11_URI");
+	if (pkcs11_uri_env != NULL && sec->Dev->Id == 24)
+	{
+		Debug("PKCS#11: Found SOFTETHER_PKCS11_URI environment variable\n");
+		return UnixLoadSecModuleWithUri(sec, pkcs11_uri_env);
 	}
 
 	// Check if ModuleName is a PKCS#11 URI
