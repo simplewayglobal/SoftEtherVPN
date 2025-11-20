@@ -2072,10 +2072,16 @@ SECURE *OpenSec(UINT id)
 	SECURE *sec;
 	UINT err;
 
+	fprintf(stderr, "OpenSec: Called with device ID %u\n", id);
+
 	if (dev == NULL)
 	{
+		fprintf(stderr, "OpenSec: ERROR - Device ID %u not found\n", id);
 		return NULL;
 	}
+
+	fprintf(stderr, "OpenSec: Device name='%s', module='%s'\n",
+		dev->DeviceName, dev->ModuleName);
 
 	sec = ZeroMalloc(sizeof(SECURE));
 
@@ -2090,21 +2096,28 @@ SECURE *OpenSec(UINT id)
 	}
 
 	// Load the module
+	fprintf(stderr, "OpenSec: Loading secure module...\n");
 	if (LoadSecModule(sec) == false)
 	{
+		fprintf(stderr, "OpenSec: ERROR - LoadSecModule failed\n");
 		CloseSec(sec);
 		return NULL;
 	}
+	fprintf(stderr, "OpenSec: Module loaded successfully\n");
 
 	// Get the slot list
+	fprintf(stderr, "OpenSec: Enumerating slots...\n");
 	sec->NumSlot = 0;
 	if ((err = sec->Api->C_GetSlotList(true, NULL, &sec->NumSlot)) != CKR_OK || sec->NumSlot == 0)
 	{
 		// Failure
+		fprintf(stderr, "OpenSec: ERROR - C_GetSlotList failed or no slots found: err=0x%x, NumSlot=%lu\n",
+			(unsigned int)err, (unsigned long)sec->NumSlot);
 		FreeSecModule(sec);
 		CloseSec(sec);
 		return NULL;
 	}
+	fprintf(stderr, "OpenSec: Found %lu slot(s)\n", (unsigned long)sec->NumSlot);
 
 	sec->SlotIdList = (CK_SLOT_ID *)ZeroMalloc(sizeof(CK_SLOT_ID) * sec->NumSlot);
 
