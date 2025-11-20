@@ -714,10 +714,40 @@ bool SignSec(SECURE *sec, char *name, void *dst, void *src, UINT size)
 // Sign with the private key of the secure device
 bool SignSecByObject(SECURE *sec, SEC_OBJ *obj, void *dst, void *src, UINT size)
 {
-	CK_MECHANISM mechanism = {CKM_RSA_PKCS, NULL, 0};
+	CK_MECHANISM mechanism;
 	CK_RV ret;
 	UCHAR hash[SIGN_HASH_SIZE];
 	CK_ULONG sign_len;
+	CK_ATTRIBUTE key_type_attr = {CKA_KEY_TYPE, NULL, 0};
+	CK_KEY_TYPE key_type;
+
+	// First, determine the key type (RSA or EC)
+	// Get the size of the key type attribute
+	ret = sec->Api->C_GetAttributeValue(sec->SessionId, obj->Object, &key_type_attr, 1);
+	if (ret == CKR_OK && key_type_attr.ulValueLen > 0)
+	{
+		key_type_attr.pValue = &key_type;
+		key_type_attr.ulValueLen = sizeof(key_type);
+		ret = sec->Api->C_GetAttributeValue(sec->SessionId, obj->Object, &key_type_attr, 1);
+	}
+
+	// Set the appropriate mechanism based on key type
+	if (ret == CKR_OK && key_type == CKK_EC)
+	{
+		// EC key - use ECDSA
+		fprintf(stderr, "SignSecByObject: Detected EC key, using ECDSA\n");
+		mechanism.mechanism = CKM_ECDSA;
+		mechanism.pParameter = NULL;
+		mechanism.ulParameterLen = 0;
+	}
+	else
+	{
+		// Default to RSA
+		fprintf(stderr, "SignSecByObject: Using RSA (default or detected RSA key)\n");
+		mechanism.mechanism = CKM_RSA_PKCS;
+		mechanism.pParameter = NULL;
+		mechanism.ulParameterLen = 0;
+	}
 	// Validate arguments
 	if (sec == NULL)
 	{
@@ -748,14 +778,17 @@ bool SignSecByObject(SECURE *sec, SEC_OBJ *obj, void *dst, void *src, UINT size)
 	HashForSign(hash, sizeof(hash), src, size);
 
 	// Signature initialization
+	fprintf(stderr, "SignSecByObject: Calling C_SignInit with mechanism 0x%lx\n", (unsigned long)mechanism.mechanism);
 	ret = sec->Api->C_SignInit(sec->SessionId, &mechanism, obj->Object);
 	if (ret != CKR_OK)
 	{
 		// Failure
 		sec->Error = SEC_ERROR_HARDWARE_ERROR;
+		fprintf(stderr, "SignSecByObject: C_SignInit Error: 0x%lx\n", (unsigned long)ret);
 		Debug("C_SignInit Error: 0x%x\n", ret);
 		return false;
 	}
+	fprintf(stderr, "SignSecByObject: C_SignInit successful\n");
 
 	// Perform Signing
 	sign_len = 128;
