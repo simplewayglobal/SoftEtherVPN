@@ -1631,9 +1631,41 @@ void CnSecureSign(SOCK *s, PACK *p)
 	ret = Win32CiSecureSign(&sign);
 #else	// OS_WIN32
 	// UNIX: Call SecureSign directly with PKCS#11
-	CLog(client, "LC_SECURE_SIGN_START", sign.SecureDeviceId);
+	// Get PIN from SOFTETHER_PKCS11_URI environment variable
+	char *pin_str = "1234";  // Default PIN, will be extracted from URI if available
+	char *pkcs11_uri = getenv("SOFTETHER_PKCS11_URI");
 
-	UINT err = SecureSign(&sign, sign.SecureDeviceId, sign.SecurePin);
+	if (pkcs11_uri != NULL)
+	{
+		// Extract pin-value from URI if present
+		char *pin_start = strstr(pkcs11_uri, "pin-value=");
+		if (pin_start != NULL)
+		{
+			pin_start += 10;  // Skip "pin-value="
+			char *pin_end = strchr(pin_start, ';');
+			if (pin_end != NULL)
+			{
+				// PIN has a terminator
+				int pin_len = pin_end - pin_start;
+				if (pin_len > 0 && pin_len < 256)
+				{
+					static char extracted_pin[256];
+					Copy(extracted_pin, pin_start, pin_len);
+					extracted_pin[pin_len] = 0;
+					pin_str = extracted_pin;
+				}
+			}
+			else
+			{
+				// PIN is at the end of the URI
+				pin_str = pin_start;
+			}
+		}
+	}
+
+	CLog(client, "LC_SECURE_SIGN_START", sign.UseSecureDeviceId);
+
+	UINT err = SecureSign(&sign, sign.UseSecureDeviceId, pin_str);
 
 	if (err == ERR_NO_ERROR)
 	{
