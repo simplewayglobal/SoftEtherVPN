@@ -623,8 +623,9 @@ bool SignSec(SECURE *sec, char *name, void *dst, void *src, UINT size)
 bool SignSecByObject(SECURE *sec, SEC_OBJ *obj, void *dst, void *src, UINT size)
 {
 	CK_MECHANISM mechanism = {CKM_RSA_PKCS, NULL, 0};
-	UINT ret;
+	CK_RV ret;
 	UCHAR hash[SIGN_HASH_SIZE];
+	CK_ULONG sign_len;
 	// Validate arguments
 	if (sec == NULL)
 	{
@@ -665,19 +666,19 @@ bool SignSecByObject(SECURE *sec, SEC_OBJ *obj, void *dst, void *src, UINT size)
 	}
 
 	// Perform Signing
-	size = 128;
+	sign_len = 128;
 	// First try with 1024 bit
-	ret = sec->Api->C_Sign(sec->SessionId, hash, sizeof(hash), dst, &size);
-	if (ret != CKR_OK && 128 < size && size <= 4096/8)
+	ret = sec->Api->C_Sign(sec->SessionId, hash, sizeof(hash), dst, &sign_len);
+	if (ret != CKR_OK && 128 < sign_len && sign_len <= 4096/8)
 	{
 		// Retry with expanded bits
-		ret = sec->Api->C_Sign(sec->SessionId, hash, sizeof(hash), dst, &size);
+		ret = sec->Api->C_Sign(sec->SessionId, hash, sizeof(hash), dst, &sign_len);
 	}
-	if (ret != CKR_OK || size == 0 || size > 4096/8)
+	if (ret != CKR_OK || sign_len == 0 || sign_len > 4096/8)
 	{
 		// Failure
 		sec->Error = SEC_ERROR_HARDWARE_ERROR;
-		Debug("C_Sign Error: 0x%x  size:%d\n", ret, size);
+		Debug("C_Sign Error: 0x%x  size:%lu\n", ret, sign_len);
 		return false;
 	}
 
@@ -721,11 +722,11 @@ bool ChangePin(SECURE *sec, char *old_pin, char *new_pin)
 // Write the private key object
 bool WriteSecKey(SECURE *sec, bool private_obj, char *name, K *k)
 {
-	UINT key_type = CKK_RSA;
+	CK_KEY_TYPE key_type = CKK_RSA;
 	CK_BBOOL b_true = true, b_false = false, b_private_obj = private_obj;
-	UINT obj_class = CKO_PRIVATE_KEY;
-	UINT object;
-	UINT ret;
+	CK_OBJECT_CLASS obj_class = CKO_PRIVATE_KEY;
+	CK_OBJECT_HANDLE object;
+	CK_RV ret;
 	BUF *b;
 	RSA *rsa;
 	UCHAR modules[MAX_SIZE], pub[MAX_SIZE], pri[MAX_SIZE], prime1[MAX_SIZE], prime2[MAX_SIZE];
@@ -955,9 +956,9 @@ X *ReadSecCertFromObject(SECURE *sec, SEC_OBJ *obj)
 // Write the certificate object
 bool WriteSecCert(SECURE *sec, bool private_obj, char *name, X *x)
 {
-	UINT obj_class = CKO_CERTIFICATE;
+	CK_OBJECT_CLASS obj_class = CKO_CERTIFICATE;
 	CK_BBOOL b_true = true, b_false = false, b_private_obj = private_obj;
-	UINT cert_type = CKC_X_509;
+	CK_CERTIFICATE_TYPE cert_type = CKC_X_509;
 	CK_DATE start_date, end_date;
 	UCHAR subject[MAX_SIZE];
 	UCHAR issuer[MAX_SIZE];
@@ -965,9 +966,9 @@ bool WriteSecCert(SECURE *sec, bool private_obj, char *name, X *x)
 	wchar_t w_issuer[MAX_SIZE];
 	UCHAR serial_number[MAX_SIZE];
 	UCHAR value[4096];
-	UINT ret;
+	CK_RV ret;
 	BUF *b;
-	UINT object;
+	CK_OBJECT_HANDLE object;
 	// Validate arguments
 	if (sec == NULL)
 	{
@@ -1113,7 +1114,7 @@ void UINT64ToCkDate(void *p_ck_date, UINT64 time64)
 {
 	SYSTEMTIME st;
 	char year[32], month[32], day[32];
-	struct CK_DATE *ck_date = (CK_DATE *)p_ck_date;
+	CK_DATE *ck_date = (CK_DATE *)p_ck_date;
 	// Validate arguments
 	if (ck_date == NULL)
 	{
