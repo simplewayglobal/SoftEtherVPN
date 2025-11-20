@@ -400,12 +400,14 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 		return false;
 	}
 
+	fprintf(stderr, "PKCS#11 URI: Parsing URI: %s\n", uri_str);
 	Debug("PKCS#11 URI: Parsing URI: %s\n", uri_str);
 
 	// Parse the PKCS#11 URI
 	uri = p11_kit_uri_new();
 	if (uri == NULL)
 	{
+		fprintf(stderr, "PKCS#11 URI: ERROR - Failed to create URI parser\n");
 		Debug("PKCS#11 URI: Failed to create URI parser\n");
 		return false;
 	}
@@ -413,6 +415,7 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 	err = p11_kit_uri_parse(uri_str, P11_KIT_URI_FOR_ANY, uri);
 	if (err != P11_KIT_URI_OK)
 	{
+		fprintf(stderr, "PKCS#11 URI: ERROR - Parse failed: %s\n", p11_kit_uri_message(err));
 		Debug("PKCS#11 URI: Parse failed: %s\n", p11_kit_uri_message(err));
 		p11_kit_uri_free(uri);
 		return false;
@@ -427,22 +430,31 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 	// module-path is required in the URI
 	if (module_path == NULL)
 	{
+		fprintf(stderr, "PKCS#11 URI: ERROR - module-path is required in URI\n");
+		fprintf(stderr, "PKCS#11 URI: Example: pkcs11:module-path=/usr/lib/libckteec.so.0;token=user;object=identity\n");
 		Debug("PKCS#11 URI: module-path is required in URI\n");
 		Debug("PKCS#11 URI: Example: pkcs11:module-path=/usr/lib/libckteec.so.0;token=user;object=identity\n");
 		p11_kit_uri_free(uri);
 		return false;
 	}
 
+	fprintf(stderr, "PKCS#11 URI: slot-id=%lu, module=%s, pin=%s\n",
+		(unsigned long)slot_id,
+		module_path ? module_path : "(null)",
+		pin ? "***" : "(null)");
 	Debug("PKCS#11 URI: slot-id=%lu, module=%s, pin=%s\n",
 		(unsigned long)slot_id,
 		module_path ? module_path : "(null)",
 		pin ? "***" : "(null)");
 
 	// Load the module using p11-kit API
+	fprintf(stderr, "PKCS#11: Loading module: %s\n", module_path);
 	Debug("PKCS#11: Loading module: %s\n", module_path);
 	module = p11_kit_module_load(module_path, 0);
 	if (module == NULL)
 	{
+		fprintf(stderr, "PKCS#11: ERROR - Failed to load module [%s]: %s\n",
+			module_path, p11_kit_message());
 		Debug("PKCS#11: Failed to load module [%s]: %s\n",
 			module_path, p11_kit_message());
 		p11_kit_uri_free(uri);
@@ -450,14 +462,17 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 	}
 
 	// Initialize the module
+	fprintf(stderr, "PKCS#11: Calling C_Initialize...\n");
 	rv = module->C_Initialize(NULL_PTR);
 	if (rv != CKR_OK)
 	{
+		fprintf(stderr, "PKCS#11: ERROR - C_Initialize failed: 0x%lx\n", (unsigned long)rv);
 		Debug("PKCS#11: C_Initialize failed: 0x%lx\n", (unsigned long)rv);
 		p11_kit_module_release(module);
 		p11_kit_uri_free(uri);
 		return false;
 	}
+	fprintf(stderr, "PKCS#11: C_Initialize succeeded\n");
 
 	// Store the module data
 	u = ZeroMalloc(sizeof(SEC_DATA_UNIX));
@@ -470,6 +485,8 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 	sec->Api = module;
 	sec->Initialized = true;
 
+	fprintf(stderr, "PKCS#11: Successfully loaded module via p11-kit API\n");
+	fprintf(stderr, "PKCS#11: Slot enumeration will be done by caller (OpenSec)\n");
 	Debug("PKCS#11: Successfully loaded module via p11-kit API\n");
 
 	// Note: Slot enumeration will be done by OpenSec() after this function returns
@@ -498,8 +515,14 @@ bool UnixLoadSecModule(SECURE *sec)
 	pkcs11_uri_env = getenv("SOFTETHER_PKCS11_URI");
 	if (pkcs11_uri_env != NULL && sec->Dev->Id == 24)
 	{
+		fprintf(stderr, "PKCS#11: Found SOFTETHER_PKCS11_URI environment variable: %s\n", pkcs11_uri_env);
 		Debug("PKCS#11: Found SOFTETHER_PKCS11_URI environment variable\n");
 		return UnixLoadSecModuleWithUri(sec, pkcs11_uri_env);
+	}
+	else if (sec->Dev->Id == 24)
+	{
+		fprintf(stderr, "PKCS#11: WARNING - Device ID 24 selected but SOFTETHER_PKCS11_URI not set\n");
+		fprintf(stderr, "PKCS#11: Will try to load default module: %s\n", sec->Dev->ModuleName);
 	}
 
 	// Check if ModuleName is a PKCS#11 URI
