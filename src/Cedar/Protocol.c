@@ -3980,14 +3980,17 @@ UINT SecureSign(SECURE_SIGN *sign, UINT device_id, char *pin)
 	}
 
 	// Read the certificate
+	fprintf(stderr, "SecureSign: Looking for certificate with name: '%s'\n", sign->SecurePublicCertName);
 	x = ReadSecCert(sec, sign->SecurePublicCertName);
 	if (x == NULL)
 	{
+		fprintf(stderr, "SecureSign: ERROR - Certificate '%s' not found\n", sign->SecurePublicCertName);
 		LogoutSec(sec);
 		CloseSecSession(sec);
 		CloseSec(sec);
 		return ERR_SECURE_NO_CERT;
 	}
+	fprintf(stderr, "SecureSign: Certificate found\n");
 
 	// Sign by the private key
 	if (SignSec(sec, sign->SecurePrivateKeyName, sign->Signature, sign->Random, SHA1_SIZE) == false)

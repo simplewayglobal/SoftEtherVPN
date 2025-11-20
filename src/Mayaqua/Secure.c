@@ -933,11 +933,14 @@ X *ReadSecCert(SECURE *sec, char *name)
 	}
 
 	// Search
+	fprintf(stderr, "ReadSecCert: Searching for certificate '%s'\n", name);
 	obj = FindSecObject(sec, name, SEC_X);
 	if (obj == NULL)
 	{
+		fprintf(stderr, "ReadSecCert: ERROR - Certificate '%s' not found in token\n", name);
 		return false;
 	}
+	fprintf(stderr, "ReadSecCert: Certificate '%s' found\n", name);
 
 	// Acquisition
 	x = ReadSecCertFromObject(sec, obj);
