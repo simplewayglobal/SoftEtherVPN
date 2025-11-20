@@ -445,32 +445,35 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 		pin ? "***" : "(null)");
 
 	// Load the module using p11-kit API
-	// IMPORTANT: Load via p11-kit-proxy.so to ensure environment variables are inherited
-	// The proxy will forward calls to the actual module (libckteec.so.0)
-	fprintf(stderr, "PKCS#11: Loading module via p11-kit-proxy: %s\n", module_path);
-	Debug("PKCS#11: Loading module via p11-kit-proxy: %s\n", module_path);
+	fprintf(stderr, "PKCS#11: Loading module: %s\n", module_path ? module_path : "p11-kit-proxy.so");
+	Debug("PKCS#11: Loading module: %s\n", module_path ? module_path : "p11-kit-proxy.so");
 
-	// Instead of loading the module directly, use p11-kit's module enumeration
-	// which respects the configuration in /etc/pkcs11/modules/*.module
-	// This ensures environment variables are properly inherited
-	module = p11_kit_module_load("p11-kit-proxy.so", 0);
+	// Verify environment variables are set before loading
+	char *login_type = getenv("CKTEEC_LOGIN_TYPE");
+	char *login_gid = getenv("CKTEEC_LOGIN_GID");
+	fprintf(stderr, "PKCS#11: Environment check: CKTEEC_LOGIN_TYPE=%s, CKTEEC_LOGIN_GID=%s\n",
+		login_type ? login_type : "(not set)",
+		login_gid ? login_gid : "(not set)");
+
+	if (module_path != NULL)
+	{
+		// Load the specified module directly
+		module = p11_kit_module_load(module_path, 0);
+	}
+	else
+	{
+		// No module-path specified, use p11-kit-proxy
+		module = p11_kit_module_load("p11-kit-proxy.so", 0);
+	}
+
 	if (module == NULL)
 	{
-		fprintf(stderr, "PKCS#11: ERROR - Failed to load p11-kit-proxy.so: %s\n",
+		fprintf(stderr, "PKCS#11: ERROR - Failed to load module: %s\n",
 			p11_kit_message());
-		fprintf(stderr, "PKCS#11: Falling back to direct module load\n");
-
-		// Fallback: try direct load
-		module = p11_kit_module_load(module_path, 0);
-		if (module == NULL)
-		{
-			fprintf(stderr, "PKCS#11: ERROR - Failed to load module [%s]: %s\n",
-				module_path, p11_kit_message());
-			Debug("PKCS#11: Failed to load module [%s]: %s\n",
-				module_path, p11_kit_message());
-			p11_kit_uri_free(uri);
-			return false;
-		}
+		Debug("PKCS#11: Failed to load module: %s\n",
+			p11_kit_message());
+		p11_kit_uri_free(uri);
+		return false;
 	}
 
 	// Initialize the module
