@@ -6307,8 +6307,39 @@ bool CiCheckCertProc(SESSION *s, CONNECTION *c, X *server_x, bool *expired)
 // Signature procedure with a secure device
 bool CiSecureSignProc(SESSION *s, CONNECTION *c, SECURE_SIGN *sign)
 {
-	// The UI is available in Win32
+#ifdef OS_WIN32
+	// Windows: Use UI dialog via notification service
 	return CncSecureSignDlg(sign);
+#else
+	// UNIX: Call CnSecureSign directly (no UI needed)
+	// This bypasses the notification service which doesn't exist on headless daemons
+	fprintf(stderr, "CiSecureSignProc: Calling CnSecureSign directly (UNIX)\n");
+
+	// Create a dummy socket and pack for compatibility
+	SOCK dummy_sock;
+	PACK *p = NewPack();
+
+	Zero(&dummy_sock, sizeof(SOCK));
+
+	// Pack the secure sign request
+	PackAddStr(p, "function", "secure_sign");
+	OutRpcSecureSign(p, sign);
+
+	// Call CnSecureSign directly
+	CnSecureSign(&dummy_sock, p);
+
+	// Get the result
+	bool ret = PackGetBool(p, "ret");
+
+	// Update the sign structure with results
+	InRpcSecureSign(sign, p);
+
+	FreePack(p);
+
+	fprintf(stderr, "CiSecureSignProc: CnSecureSign returned %d\n", ret);
+
+	return ret;
+#endif
 }
 
 #ifdef	OS_WIN32
