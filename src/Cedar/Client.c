@@ -6287,28 +6287,18 @@ bool CiSecureSignProc(SESSION *s, CONNECTION *c, SECURE_SIGN *sign)
 	// This bypasses the notification service which doesn't exist on headless daemons
 	fprintf(stderr, "CiSecureSignProc: Calling CnSecureSign directly (UNIX)\n");
 
-	// Create a dummy socket and pack for compatibility
-	SOCK dummy_sock;
-	PACK *p = NewPack();
+	// For UNIX, we need to call the signing function directly
+	// since there's no notification service
+	UINT err = SecureSign(sign, sign->UseSecureDeviceId, "1234");
 
-	Zero(&dummy_sock, sizeof(SOCK));
+	bool ret = (err == ERR_NO_ERROR);
 
-	// Pack the secure sign request
-	PackAddStr(p, "function", "secure_sign");
-	OutRpcSecureSign(p, sign);
+	if (!ret)
+	{
+		fprintf(stderr, "CiSecureSignProc: SecureSign failed with error %u\n", err);
+	}
 
-	// Call CnSecureSign directly
-	CnSecureSign(&dummy_sock, p);
-
-	// Get the result
-	bool ret = PackGetBool(p, "ret");
-
-	// Update the sign structure with results
-	InRpcSecureSign(sign, p);
-
-	FreePack(p);
-
-	fprintf(stderr, "CiSecureSignProc: CnSecureSign returned %d\n", ret);
+	fprintf(stderr, "CiSecureSignProc: SecureSign returned %d (error=%u)\n", ret, err);
 
 	return ret;
 #endif
