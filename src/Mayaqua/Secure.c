@@ -459,7 +459,7 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 		return false;
 	}
 
-	// Store the data
+	// Store the module data
 	u = ZeroMalloc(sizeof(SEC_DATA_UNIX));
 	u->Handle = NULL;  // We're not using dlopen
 	u->P11KitUri = uri;
@@ -471,6 +471,9 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 	sec->Initialized = true;
 
 	Debug("PKCS#11: Successfully loaded module via p11-kit API\n");
+
+	// Note: Slot enumeration will be done by OpenSec() after this function returns
+	// The caller (OpenSec) will call C_GetSlotList to enumerate available slots
 
 	return true;
 }
