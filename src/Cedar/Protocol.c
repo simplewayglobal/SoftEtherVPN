@@ -4180,15 +4180,24 @@ CLEANUP:
 void ClientSecureSignThread(THREAD *thread, void *param)
 {
 	SECURE_SIGN_THREAD_PROC *p = (SECURE_SIGN_THREAD_PROC *)param;
+
+	fprintf(stderr, "ClientSecureSignThread: Started\n");
+
 	// Validate arguments
 	if (thread == NULL || param == NULL)
 	{
+		fprintf(stderr, "ClientSecureSignThread: NULL argument\n");
 		return;
 	}
 
 	NoticeThreadInit(thread);
 
+	fprintf(stderr, "ClientSecureSignThread: Calling SecureSignProc=%p\n", p->SecureSignProc);
+
 	p->Ok = p->SecureSignProc(p->Connection->Session, p->Connection, p->SecureSign);
+
+	fprintf(stderr, "ClientSecureSignThread: SecureSignProc returned %d\n", p->Ok);
+
 	p->UserFinished = true;
 }
 
@@ -4203,15 +4212,21 @@ bool ClientSecureSign(CONNECTION *c, UCHAR *sign, UCHAR *random, X **x)
 	THREAD *thread;
 	UINT64 start;
 	bool ret;
+
+	fprintf(stderr, "ClientSecureSign: Called\n");
+
 	// Validate arguments
 	if (c == NULL || sign == NULL || random == NULL || x == NULL)
 	{
+		fprintf(stderr, "ClientSecureSign: NULL argument\n");
 		return false;
 	}
 
 	s = c->Session;
 	o = s->ClientOption;
 	a = s->ClientAuth;
+
+	fprintf(stderr, "ClientSecureSign: SecureSignProc=%p\n", a->SecureSignProc);
 
 	p = ZeroMalloc(sizeof(SECURE_SIGN_THREAD_PROC));
 	p->Connection = c;
@@ -4229,9 +4244,13 @@ bool ClientSecureSign(CONNECTION *c, UCHAR *sign, UCHAR *random, X **x)
 
 	p->SecureSignProc = a->SecureSignProc;
 
+	fprintf(stderr, "ClientSecureSign: Creating thread\n");
+
 	// Create a thread
 	thread = NewThread(ClientSecureSignThread, p);
 	WaitThreadInit(thread);
+
+	fprintf(stderr, "ClientSecureSign: Thread created, waiting for completion\n");
 
 	// Poll every 0.5 seconds until signing is completed or canceled
 	start = Tick64();
@@ -4254,10 +4273,17 @@ bool ClientSecureSign(CONNECTION *c, UCHAR *sign, UCHAR *random, X **x)
 
 	ret = p->Ok;
 
+	fprintf(stderr, "ClientSecureSign: Thread finished, ret=%d\n", ret);
+
 	if (ret)
 	{
+		fprintf(stderr, "ClientSecureSign: Copying signature and cert\n");
 		Copy(sign, ss->Signature, sizeof(ss->Signature));
 		*x = ss->ClientCert;
+	}
+	else
+	{
+		fprintf(stderr, "ClientSecureSign: Signing failed\n");
 	}
 
 	Free(p->SecureSign);
