@@ -1641,9 +1641,9 @@ void CnSecureSign(SOCK *s, PACK *p)
 	ret = Win32CiSecureSign(&sign);
 #else	// OS_WIN32
 	// UNIX: Call SecureSign directly with PKCS#11
-	// The PIN will be extracted from the PKCS#11 URI by the PKCS#11 module itself
-	// We pass a dummy PIN here since the real PIN is in the URI
-	char *pin_str = "0000";  // Dummy PIN - real PIN is in SOFTETHER_PKCS11_URI
+	// For OP-TEE with group authentication, the PIN is typically "1234"
+	// The PKCS#11 URI also contains the PIN, but SecureSign needs it separately
+	char *pin_str = "1234";  // Default OP-TEE user token PIN
 	char *pkcs11_uri = getenv("SOFTETHER_PKCS11_URI");
 
 	fprintf(stderr, "CnSecureSign: SOFTETHER_PKCS11_URI=%s\n", pkcs11_uri ? pkcs11_uri : "(null)");
