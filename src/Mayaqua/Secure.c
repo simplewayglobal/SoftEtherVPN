@@ -276,6 +276,28 @@ typedef struct SEC_DATA_UNIX
 	bool HasSlotId;  // Whether slot ID was specified in URI
 } SEC_DATA_UNIX;
 
+// Get slot ID from URI if available (Unix only)
+bool GetSecureSlotIdFromUri(SECURE *sec, CK_SLOT_ID *slot_id)
+{
+#ifdef OS_WIN32
+	return false;
+#else
+	// Validate arguments
+	if (sec == NULL || slot_id == NULL || sec->Data == NULL)
+	{
+		return false;
+	}
+
+	SEC_DATA_UNIX *u = (SEC_DATA_UNIX *)sec->Data;
+	if (u->HasSlotId)
+	{
+		*slot_id = u->SlotIdFromUri;
+		return true;
+	}
+	return false;
+#endif
+}
+
 // Load shared library for Unix
 void *UnixSecureLoadLibrary(char *modulename)
 {

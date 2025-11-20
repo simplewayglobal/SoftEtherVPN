@@ -3967,24 +3967,23 @@ UINT SecureSign(SECURE_SIGN *sign, UINT device_id, char *pin)
 	// Open the session
 	// Use the slot ID from the URI if available, otherwise default to 0
 	UINT slot_to_use = 0;
-#ifndef OS_WIN32
-	if (sec->Data != NULL && sec->Data->HasSlotId)
+	CK_SLOT_ID uri_slot_id;
+	if (GetSecureSlotIdFromUri(sec, &uri_slot_id))
 	{
 		// Map the slot ID to slot index
 		// The URI has slot ID (e.g., 1), but OpenSecSession expects index
 		// We need to find which index corresponds to this slot ID
 		for (UINT i = 0; i < sec->NumSlot; i++)
 		{
-			if (sec->SlotIdList[i] == sec->Data->SlotIdFromUri)
+			if (sec->SlotIdList[i] == uri_slot_id)
 			{
 				slot_to_use = i;
 				fprintf(stderr, "SecureSign: Using slot index %u for slot ID %lu\n",
-					i, (unsigned long)sec->Data->SlotIdFromUri);
+					i, (unsigned long)uri_slot_id);
 				break;
 			}
 		}
 	}
-#endif
 
 	if (OpenSecSession(sec, slot_to_use) == false)
 	{

@@ -116,6 +116,7 @@ struct SEC_OBJ
 // Function prototype
 void InitSecure();
 void FreeSecure();
+bool GetSecureSlotIdFromUri(SECURE *sec, CK_SLOT_ID *slot_id);
 void InitSecureDeviceList();
 void FreeSecureDeviceList();
 bool IsDeviceSupported(SECURE_DEVICE *dev);
