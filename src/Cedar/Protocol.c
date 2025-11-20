@@ -4013,15 +4013,18 @@ UINT SecureSign(SECURE_SIGN *sign, UINT device_id, char *pin)
 	fprintf(stderr, "SecureSign: Certificate found\n");
 
 	// Sign by the private key
+	fprintf(stderr, "SecureSign: Looking for private key with name: '%s'\n", sign->SecurePrivateKeyName);
 	if (SignSec(sec, sign->SecurePrivateKeyName, sign->Signature, sign->Random, SHA1_SIZE) == false)
 	{
 		// Signing failure
+		fprintf(stderr, "SecureSign: ERROR - Private key '%s' not found or signing failed\n", sign->SecurePrivateKeyName);
 		FreeX(x);
 		LogoutSec(sec);
 		CloseSecSession(sec);
 		CloseSec(sec);
 		return ERR_SECURE_NO_PRIVATE_KEY;
 	}
+	fprintf(stderr, "SecureSign: Signing successful\n");
 
 	// Convert the certificate to buffer
 	sign->ClientCert = x;

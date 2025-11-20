@@ -695,11 +695,14 @@ bool SignSec(SECURE *sec, char *name, void *dst, void *src, UINT size)
 		return false;
 	}
 
+	fprintf(stderr, "SignSec: Looking for private key '%s'\n", name);
 	obj = FindSecObject(sec, name, SEC_K);
 	if (obj == NULL)
 	{
+		fprintf(stderr, "SignSec: ERROR - Private key '%s' not found in token\n", name);
 		return false;
 	}
+	fprintf(stderr, "SignSec: Private key '%s' found\n", name);
 
 	ret = SignSecByObject(sec, obj, dst, src, size);
 
