@@ -2090,6 +2090,7 @@ LA_SET_SPECIAL_LISTENER	Special Listener enable / disable status has been change
 LC_START_1				The SoftEther VPN Client Engine has been started.
 LC_START_2				%S %S
 LC_START_3				%S
+LC_DEBUG_ENV_CHECK		DEBUG: Environment variables checked. PKCS#11 URI and OP-TEE settings loaded.
 LC_END					The SoftEther VPN Client Engine has been shut down.
 LC_LOAD_CONFIG_1		Loading configuration file...
 LC_LOAD_CONFIG_2		The configuration file has been loaded.

@@ -10487,6 +10487,30 @@ CLIENT *CiNewClient()
 	CLog(c, "LC_START_3", c->Cedar->BuildInfo);
 	CLog(c, "LC_START_1");
 
+	// Test logging to verify fprintf and file-based logging work
+	fprintf(stderr, "=== VPNCLIENT DEBUG START ===\n");
+	fprintf(stderr, "Client pointer: %p\n", c);
+	fprintf(stderr, "Logger pointer: %p\n", c->Logger);
+	fprintf(stderr, "SOFTETHER_PKCS11_URI env: %s\n", getenv("SOFTETHER_PKCS11_URI") ? getenv("SOFTETHER_PKCS11_URI") : "(not set)");
+	fprintf(stderr, "CKTEEC_LOGIN_TYPE env: %s\n", getenv("CKTEEC_LOGIN_TYPE") ? getenv("CKTEEC_LOGIN_TYPE") : "(not set)");
+	fprintf(stderr, "CKTEEC_LOGIN_GID env: %s\n", getenv("CKTEEC_LOGIN_GID") ? getenv("CKTEEC_LOGIN_GID") : "(not set)");
+	fprintf(stderr, "=== VPNCLIENT DEBUG END ===\n");
+	fflush(stderr);
+
+	CLog(c, "LC_DEBUG_ENV_CHECK");
+
+	// Also write directly to a debug file
+	{
+		FILE *debug_fp = fopen("/tmp/vpnclient-debug.txt", "w");
+		if (debug_fp != NULL)
+		{
+			fprintf(debug_fp, "VPN Client started at %llu\n", (unsigned long long)Tick64());
+			fprintf(debug_fp, "Client pointer: %p\n", c);
+			fprintf(debug_fp, "SOFTETHER_PKCS11_URI: %s\n", getenv("SOFTETHER_PKCS11_URI") ? getenv("SOFTETHER_PKCS11_URI") : "(not set)");
+			fclose(debug_fp);
+		}
+	}
+
 #ifdef	OS_WIN32
 	{
 		// Initialize the Win32 UI
