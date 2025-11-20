@@ -1084,7 +1084,7 @@ bool DeleteSecCert(SECURE *sec, char *name)
 }
 
 // Convert the the CK_DATE to the 64 bit time
-UINT64 CkDateToUINT64(struct CK_DATE *ck_date)
+UINT64 CkDateToUINT64(CK_DATE *ck_date)
 {
 	SYSTEMTIME st;
 	char year[32], month[32], day[32];
@@ -1517,16 +1517,16 @@ LIST *CloneEnumSecObject(LIST *o)
 LIST *EnumSecObject(SECURE *sec)
 {
 	CK_BBOOL b_true = true, b_false = false;
-	UINT objects[MAX_OBJ];
+	CK_OBJECT_HANDLE objects[MAX_OBJ];
 	UINT i;
-	UINT ret;
+	CK_RV ret;
 	LIST *o;
 	CK_ATTRIBUTE dummy[1];
 	CK_ATTRIBUTE a[] =
 	{
 		{CKA_TOKEN,		&b_true,		sizeof(b_true)},
 	};
-	UINT num_objects = MAX_OBJ;
+	CK_ULONG num_objects = MAX_OBJ;
 	// Validate arguments
 	if (sec == NULL)
 	{
@@ -1576,8 +1576,8 @@ LIST *EnumSecObject(SECURE *sec)
 	for (i = 0;i < num_objects;i++)
 	{
 		char label[MAX_SIZE];
-		UINT obj_class = 0;
-		bool priv = false;
+		CK_OBJECT_CLASS obj_class = 0;
+		CK_BBOOL priv = CK_FALSE;
 		CK_ATTRIBUTE get[] =
 		{
 			{CKA_LABEL, label, sizeof(label) - 1},
@@ -1621,7 +1621,7 @@ LIST *EnumSecObject(SECURE *sec)
 
 				obj->Type = type;
 				obj->Object = objects[i];
-				obj->Private = (priv == false) ? false : true;
+				obj->Private = (priv == CK_FALSE) ? false : true;
 				EnSafeStr(label, '?');
 				TruncateCharFromStr(label, '?');
 				obj->Name = CopyStr(label);
@@ -1640,9 +1640,9 @@ LIST *EnumSecObject(SECURE *sec)
 // Write the data
 bool WriteSecData(SECURE *sec, bool private_obj, char *name, void *data, UINT size)
 {
-	UINT object_class = CKO_DATA;
+	CK_OBJECT_CLASS object_class = CKO_DATA;
 	CK_BBOOL b_true = true, b_false = false, b_private_obj = private_obj;
-	UINT object;
+	CK_OBJECT_HANDLE object;
 	// Validate arguments
 	if (sec == NULL)
 	{
@@ -1947,8 +1947,8 @@ void CloseSecSession(SECURE *sec)
 // Open the session
 bool OpenSecSession(SECURE *sec, UINT slot_number)
 {
-	UINT err = 0;
-	UINT session;
+	CK_RV err = 0;
+	CK_SESSION_HANDLE session;
 	// Validate arguments
 	if (sec == NULL)
 	{
