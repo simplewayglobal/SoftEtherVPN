@@ -22,6 +22,7 @@
 #ifndef OS_WIN32
 // Include p11-kit headers first (they provide pkcs11.h)
 #include <dlfcn.h>
+#include <string.h>
 #include <p11-kit/pkcs11.h>
 #include <p11-kit/uri.h>
 #include <p11-kit/p11-kit.h>
@@ -455,70 +456,25 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 		login_type ? login_type : "(not set)",
 		login_gid ? login_gid : "(not set)");
 
-	void *dlopen_handle = NULL;
-	bool use_dlopen = false;
-
-	if (module_path != NULL && strcmp(module_path, "/usr/lib/libckteec.so.0") == 0)
+	if (module_path != NULL)
 	{
-		// Special case for libckteec.so.0: use dlopen directly like pkcs11-tool does
-		// This ensures environment variables are properly inherited
-		CK_RV (*get_function_list)(CK_FUNCTION_LIST_PTR_PTR);
-
-		fprintf(stderr, "PKCS#11: Using direct dlopen for libckteec.so.0\n");
-		dlopen_handle = dlopen(module_path, RTLD_NOW);
-		if (dlopen_handle == NULL)
-		{
-			fprintf(stderr, "PKCS#11: ERROR - dlopen failed: %s\n", dlerror());
-			p11_kit_uri_free(uri);
-			return false;
-		}
-
-		get_function_list = (CK_RV (*)(CK_FUNCTION_LIST_PTR_PTR))dlsym(dlopen_handle, "C_GetFunctionList");
-		if (get_function_list == NULL)
-		{
-			fprintf(stderr, "PKCS#11: ERROR - dlsym(C_GetFunctionList) failed: %s\n", dlerror());
-			dlclose(dlopen_handle);
-			p11_kit_uri_free(uri);
-			return false;
-		}
-
-		if (get_function_list(&module) != CKR_OK || module == NULL)
-		{
-			fprintf(stderr, "PKCS#11: ERROR - C_GetFunctionList failed\n");
-			dlclose(dlopen_handle);
-			p11_kit_uri_free(uri);
-			return false;
-		}
-
-		use_dlopen = true;
-	}
-	else if (module_path != NULL)
-	{
-		// Load other modules via p11-kit
+		// Load the specified module directly
 		module = p11_kit_module_load(module_path, 0);
-		if (module == NULL)
-		{
-			fprintf(stderr, "PKCS#11: ERROR - Failed to load module: %s\n",
-				p11_kit_message());
-			Debug("PKCS#11: Failed to load module: %s\n",
-				p11_kit_message());
-			p11_kit_uri_free(uri);
-			return false;
-		}
 	}
 	else
 	{
-		// No module-path specified, use p11-kit-proxy
+		// No module-path specified, try p11-kit-proxy
 		module = p11_kit_module_load("p11-kit-proxy.so", 0);
-		if (module == NULL)
-		{
-			fprintf(stderr, "PKCS#11: ERROR - Failed to load module: %s\n",
-				p11_kit_message());
-			Debug("PKCS#11: Failed to load module: %s\n",
-				p11_kit_message());
-			p11_kit_uri_free(uri);
-			return false;
-		}
+	}
+
+	if (module == NULL)
+	{
+		fprintf(stderr, "PKCS#11: ERROR - Failed to load module: %s\n",
+			p11_kit_message());
+		Debug("PKCS#11: Failed to load module: %s\n",
+			p11_kit_message());
+		p11_kit_uri_free(uri);
+		return false;
 	}
 
 	// Initialize the module
@@ -536,10 +492,10 @@ bool UnixLoadSecModuleWithUri(SECURE *sec, const char *uri_str)
 
 	// Store the module data
 	u = ZeroMalloc(sizeof(SEC_DATA_UNIX));
-	u->Handle = dlopen_handle;  // Will be NULL if we used p11-kit
+	u->Handle = NULL;  // We're using p11-kit, not direct dlopen
 	u->P11KitUri = uri;
 	u->P11KitModule = module;
-	u->UseP11KitApi = !use_dlopen;
+	u->UseP11KitApi = true;
 
 	sec->Data = u;
 	sec->Api = module;
