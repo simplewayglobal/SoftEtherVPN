@@ -119,7 +119,7 @@ if(UNIX)
       $<$<BOOL:${LIB_RT}>:${LIB_RT}>
   )
 
-  target_include_directories(mayaqua PRIVATE ${P11KIT_INCLUDE_DIRS})
+  target_include_directories(mayaqua PUBLIC ${P11KIT_INCLUDE_DIRS})
   target_link_directories(mayaqua PRIVATE ${P11KIT_LIBRARY_DIRS})
 
   if (NOT HAVE_SYS_AUXV OR SKIP_CPU_FEATURES)
