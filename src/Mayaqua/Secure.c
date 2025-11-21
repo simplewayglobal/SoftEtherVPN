@@ -775,7 +775,19 @@ bool SignSecByObject(SECURE *sec, SEC_OBJ *obj, void *dst, void *src, UINT size)
 	}
 
 	// Hash
-	HashForSign(hash, sizeof(hash), src, size);
+	// For EC keys, sign the raw hash. For RSA keys, use PKCS#1 padded hash
+	if (mechanism.mechanism == CKM_ECDSA)
+	{
+		// EC: Sign raw SHA-1 hash
+		fprintf(stderr, "SignSecByObject: Using raw SHA-1 hash for ECDSA\n");
+		Sha1(hash, src, size);
+	}
+	else
+	{
+		// RSA: Use PKCS#1 padded hash
+		fprintf(stderr, "SignSecByObject: Using PKCS#1 padded hash for RSA\n");
+		HashForSign(hash, sizeof(hash), src, size);
+	}
 
 	// Signature initialization
 	fprintf(stderr, "SignSecByObject: Calling C_SignInit with mechanism 0x%lx\n", (unsigned long)mechanism.mechanism);
@@ -791,13 +803,27 @@ bool SignSecByObject(SECURE *sec, SEC_OBJ *obj, void *dst, void *src, UINT size)
 	fprintf(stderr, "SignSecByObject: C_SignInit successful\n");
 
 	// Perform Signing
-	sign_len = 128;
-	// First try with 1024 bit
-	ret = sec->Api->C_Sign(sec->SessionId, hash, sizeof(hash), dst, &sign_len);
+	// EC signatures are smaller than RSA signatures
+	// For P-256 (256-bit EC key), signature is 64 bytes (32 bytes for r + 32 bytes for s)
+	// For RSA, minimum is 128 bytes for 1024-bit key
+	if (mechanism.mechanism == CKM_ECDSA)
+	{
+		sign_len = 128;  // Start with reasonable size for EC signatures (DER encoded can be up to ~72 bytes for P-256)
+	}
+	else
+	{
+		sign_len = 128;  // RSA 1024-bit minimum
+	}
+	// First try with appropriate size
+	// For EC, we're signing the raw hash (SHA1_SIZE=20 bytes)
+	// For RSA, we're signing the PKCS#1 padded hash (SIGN_HASH_SIZE=35 bytes)
+	CK_ULONG hash_len = (mechanism.mechanism == CKM_ECDSA) ? SHA1_SIZE : sizeof(hash);
+	fprintf(stderr, "SignSecByObject: Signing %lu bytes of hash data\n", (unsigned long)hash_len);
+	ret = sec->Api->C_Sign(sec->SessionId, hash, hash_len, dst, &sign_len);
 	if (ret != CKR_OK && 128 < sign_len && sign_len <= 4096/8)
 	{
 		// Retry with expanded bits
-		ret = sec->Api->C_Sign(sec->SessionId, hash, sizeof(hash), dst, &sign_len);
+		ret = sec->Api->C_Sign(sec->SessionId, hash, hash_len, dst, &sign_len);
 	}
 	if (ret != CKR_OK || sign_len == 0 || sign_len > 4096/8)
 	{
